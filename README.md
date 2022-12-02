@@ -3,5 +3,6 @@ This project implements equations found in Computational Lithography (Xu Ma, Gon
 
 Using gradient based descent and Abbe imaging, we find a source-mask combination which can print a given pattern to target. 
 
-I’ve also included a class based implementation, to give me practice with object oriented programming. 
+To execute: Run_MO_CTM_class_based.py
+
 

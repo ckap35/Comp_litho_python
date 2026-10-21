@@ -1,4 +1,4 @@
-"""Run and save the fixed-source mask optimization example."""
+"""Optimize a continuous-tone amplitude mask and save the result."""
 
 import argparse
 import json
@@ -12,7 +12,7 @@ from optimization import gradient_descent
 
 
 def make_target(image_size=231):
-    """The original four touching 30-pixel squares form one 60-pixel square."""
+    """Return a 60 by 60 pixel square target near the array midpoint."""
     if image_size < 61:
         raise ValueError("the example target needs an image_size of at least 61")
     target = np.zeros((image_size, image_size))

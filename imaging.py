@@ -18,11 +18,11 @@ def _readonly(array):
 
 @dataclass(frozen=True, eq=False)
 class ImagingModel:
-    """Cache kernels once. Construct a new model to change optical parameters.
+    """Abbe imaging model with cached coherent kernels.
 
-    Optional source_weights are nonnegative intensities on the same centered
-    frequency lattice as the annulus. Weights are copied and normalized.
-    Even source sizes sample half-integer frequencies; odd sizes include zero.
+    source_weights gives intensities on the centered source-frequency lattice.
+    Weights are copied and normalized. Even source sizes use half-integer
+    coordinates; odd sizes include the on-axis point.
     """
 
     wavelength_nm: float = 193.0

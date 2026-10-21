@@ -36,9 +36,9 @@ def gradient_descent(
 ):
     """Minimize an objective returning (loss, gradient).
 
-    Accepted masks, losses, and gradients advance together. Failed line searches
-    retain the last accepted state and are not convergence. Relative loss
-    convergence measures objective stability, not necessarily stationarity.
+    An accepted step updates the mask, loss, and gradient together. A failed
+    line search returns the last accepted state. A relative-loss stop does
+    not require the gradient to be small.
     """
     for name, value in (("max_iterations", max_iterations), ("max_backtracks", max_backtracks)):
         if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 0:

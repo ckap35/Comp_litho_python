@@ -1,96 +1,88 @@
 # Computational lithography in Python
 
-A small implementation of scalar, partially coherent Abbe imaging and
-gradient-based continuous-tone mask optimization. The starting point is
+Scalar Abbe imaging and continuous-tone mask optimization, based on
 *Computational Lithography* by Xu Ma and Gonzalo R. Arce.
 
-The source is fixed. Optimization changes a real-valued mask amplitude to
-minimize the sum of squared differences between aerial and target intensity.
-Mask amplitudes are unconstrained and can be negative or exceed one. This is
-a relaxed inverse problem, not a binary-mask synthesis or resist simulation.
+The source is fixed. The optimizer adjusts a real mask amplitude to minimize
+squared error between the aerial image and a target intensity. Amplitudes can
+be negative or exceed one, so the result is an unconstrained optical design.
+Binary-mask constraints and resist physics are not included.
 
 ## Run
 
-Requires Python 3.10 or newer. From the repository root:
+Requires Python 3.10 or later. From the repository root:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
+source .venv/bin/activate
 python -m pip install -e .
 python run_mask_optimization.py --iterations 500
 ```
 
-The installed `comp-litho` command runs the same example. The original
-`python Run_MO_CTM_class_based.py` command remains available.
-Imports do not start optimization or open figures.
+On Windows PowerShell, activate the environment with
+`.venv\Scripts\Activate.ps1`.
 
-The example starts from a 60 by 60 pixel square, equivalent to the original
-four touching squares. Default parameters are 193 nm wavelength, NA 1.25,
-2 nm pixels, a 231 by 231 image, a 41 by 41 kernel, and an 18 by 18 source
-lattice with annular sigma from 0.89 to 0.99.
+The installed `comp-litho` command runs the same example.
+`Run_MO_CTM_class_based.py` is retained as an entry point for older scripts.
 
-Results are saved in `results/mask_optimization/`:
+The default target is a 60 × 60 pixel square. The optical settings are:
 
-- `summary.png`: target, initial/final aerial images, final mask, error, and loss.
-- `arrays.npz`: input/output arrays and accepted iteration history.
-- `parameters.json` and `metrics.json`: settings and numerical results.
+| Parameter | Value |
+| --- | --- |
+| Wavelength / NA | 193 nm / 1.25 |
+| Pixel spacing / image size | 2 nm / 231 × 231 |
+| Kernel size | 41 × 41 |
+| Source lattice | 18 × 18 |
+| Annular source | Sigma 0.89–0.99 |
 
-Use `--output PATH` to save elsewhere or `--initial-step VALUE` to change the
-starting line-search step. No randomness is used. Timing varies by machine.
+The run saves `summary.png`, `arrays.npz`, `parameters.json`, and `metrics.json`
+in `results/mask_optimization/`. The arrays include the target, mask, aerial
+images, and accepted loss history. Use `--output PATH` to change the directory
+or `--initial-step VALUE` to change the initial line-search step.
 
-## Model conventions
+## Model and optimizer
 
-- All lengths are in nm. Array axes are `(y, x)`.
-- Coordinates use the zero-based midpoint `(size - 1) / 2`.
-- Source frequency spacing is `1 / (image_size * pixel_size_nm)` cycles/nm.
-  Sigma is radial source frequency divided by `NA / wavelength_nm`. Phase
-  ramps use `exp(2 pi i (fy y + fx x))`, consistent with that same spacing.
-  An even source lattice has half-integer coordinates and no on-axis sample.
-- The amplitude response is a sampled `J1(u)/u`, with its limit of 1/2 at
-  the origin. It is truncated to a circular spatial support and normalized
-  to have unit sum. Finite support approximates an ideal circular pupil;
-  changing kernel size or source sampling can change the physical result.
-- Source intensities are nonnegative and normalized to sum to one. A custom
-  `source_weights` array can replace the annulus when constructing a model.
-- Convolutions are linear, zero padded, and cropped to the input shape.
-  The exterior of the simulated mask is opaque; images are not periodic.
-- Optical kernels and their conjugate-reversed adjoints are cached. Models
-  and cached arrays are immutable; construct a new model to change optics.
+The image is an incoherent sum of source-point intensities. Each source point
+uses a complex kernel formed from a sampled circular-pupil response and an
+illumination phase ramp. Convolution is linear with zero padding: the mask is
+opaque outside the simulated region.
 
-For source weights `w`, fields `u = K m`, and intensity `I = sum(w |u|^2)`,
-the loss is `L = sum((I - target)^2)` and its real-mask derivative is
-`4 sum(w Re(K^H ((I - target) u)))`. Here `K^H` uses the conjugate-reversed
-full complex kernel, including its illumination phase.
+The [model notes](docs/model.md) give the sampling convention, kernel
+normalization, and real-mask gradient. The finite kernel support and source
+sampling are numerical approximations; both affect the image.
 
-## Optimization and tests
+Optimization uses gradient descent with Armijo backtracking. `metrics.json`
+records the stopping status, accepted iterations, rejected steps, and final
+gradient norm. Reaching the iteration limit is not convergence. A relative-loss
+stop measures objective stability and may occur before the gradient is small.
 
-The optimizer uses deterministic Armijo backtracking. A trial mask, loss,
-and gradient are accepted together. A failed line search retains the last
-accepted iterate and reports failure. Other statuses distinguish gradient
-tolerance, relative loss tolerance, and the iteration limit. Relative loss
-tolerance means objective stability; it does not prove a stationary point.
+## Python API
 
-Run the tests with Python's standard-library test runner:
+```python
+from imaging import ImagingModel
+from optimization import gradient_descent
+from run_mask_optimization import make_target
+
+model = ImagingModel()
+target = make_target(model.image_size)
+result = gradient_descent(
+    lambda mask: model.loss_and_gradient(mask, target),
+    target,
+    max_iterations=100,
+)
+```
+
+Pass `source_weights` to `ImagingModel` to use a custom source. The weights
+must be nonnegative intensities on the model's source lattice. Optical
+parameters and cached kernels are read-only; construct a new model to change
+them.
+
+## Tests
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-Tests compare FFT imaging against direct convolution, verify adjoint and
-finite-difference derivatives (including asymmetric illumination and image
-boundaries), and exercise rejected steps, failure reporting, repeatability,
-and a short imaging optimization.
-
-## Files
-
-- `imaging.py`: immutable optical model, aerial image, and analytical gradient.
-- `optimization.py`: backtracking gradient descent and optimization history.
-- `run_mask_optimization.py`: example, command-line arguments, and saved results.
-- `tests/`: numerical correctness and optimizer regression tests.
-
-Compared with the earlier code, the array midpoints, response at zero, source
-phase spacing, and adjoint gradient have been corrected. The source phase
-spacing previously corresponded to half the sigma used to select the annulus.
-Results therefore need not match the earlier implementation.
-
-
+The tests compare FFT and direct convolution, check adjoints and finite-difference
+gradients, and cover asymmetric sources, image boundaries, rejected steps,
+stopping conditions, and repeatability.

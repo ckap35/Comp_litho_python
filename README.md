@@ -22,7 +22,6 @@ On Windows PowerShell, activate the environment with
 `.venv\Scripts\Activate.ps1`.
 
 The installed `comp-litho` command runs the same example.
-`Run_MO_CTM_class_based.py` is retained as an entry point for older scripts.
 
 The default target is a 60 × 60 pixel square. The optical settings are:
 
@@ -38,6 +37,14 @@ The run saves `summary.png`, `arrays.npz`, `parameters.json`, and `metrics.json`
 in `results/mask_optimization/`. The arrays include the target, mask, aerial
 images, and accepted loss history. Use `--output PATH` to change the directory
 or `--initial-step VALUE` to change the initial line-search step.
+
+## Code
+
+| File | Contents |
+| --- | --- |
+| `imaging.py` | Abbe imaging model and mask gradient |
+| `optimization.py` | Gradient descent and line search |
+| `run_mask_optimization.py` | Example target, command-line options, and saved results |
 
 ## Model and optimizer
 

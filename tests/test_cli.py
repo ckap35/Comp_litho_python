@@ -20,19 +20,19 @@ class CommandLineTests(unittest.TestCase):
             environment = os.environ.copy()
             environment["PYTHONPATH"] = str(ROOT)
             process = subprocess.run(
-                [sys.executable, "-c", "import run_mask_optimization; import Run_MO_CTM_class_based"],
+                [sys.executable, "-c", "import run_mask_optimization"],
                 cwd=directory, env=environment, capture_output=True, text=True, check=True,
             )
             self.assertEqual(process.stdout, "")
             self.assertEqual(list(Path(directory).iterdir()), [])
 
-    def test_original_command_saves_a_consistent_result(self):
+    def test_command_saves_a_consistent_result(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "result"
             environment = os.environ.copy()
             environment["MPLBACKEND"] = "Agg"
             process = subprocess.run(
-                [sys.executable, str(ROOT / "Run_MO_CTM_class_based.py"),
+                [sys.executable, str(ROOT / "run_mask_optimization.py"),
                  "--iterations", "2", "--output", str(output)],
                 env=environment, capture_output=True, text=True, check=True,
             )

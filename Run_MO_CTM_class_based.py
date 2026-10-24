@@ -1,4 +1,4 @@
-"""Compatibility entry point. Prefer running run_mask_optimization.py."""
+"""Legacy entry point for run_mask_optimization.py."""
 
 from run_mask_optimization import main
 

@@ -3,10 +3,9 @@
 Scalar Abbe imaging and continuous-tone mask optimization, based on
 *Computational Lithography* by Xu Ma and Gonzalo R. Arce.
 
-The source is fixed. The optimizer adjusts a real mask amplitude to minimize
-squared error between the aerial image and a target intensity. Amplitudes can
-be negative or exceed one, so the result is an unconstrained optical design.
-Binary-mask constraints and resist physics are not included.
+The optimizer adjusts a real, unconstrained mask amplitude under a fixed
+source to minimize squared error between the aerial image and a target
+intensity.
 
 ## Run
 
@@ -48,13 +47,12 @@ illumination phase ramp. Convolution is linear with zero padding: the mask is
 opaque outside the simulated region.
 
 The [model notes](docs/model.md) give the sampling convention, kernel
-normalization, and real-mask gradient. The finite kernel support and source
-sampling are numerical approximations; both affect the image.
+normalization, and real-mask gradient.
 
 Optimization uses gradient descent with Armijo backtracking. `metrics.json`
 records the stopping status, accepted iterations, rejected steps, and final
-gradient norm. Reaching the iteration limit is not convergence. A relative-loss
-stop measures objective stability and may occur before the gradient is small.
+gradient norm. The [stopping conditions](docs/model.md#stopping-conditions)
+are described in the model notes.
 
 ## Python API
 

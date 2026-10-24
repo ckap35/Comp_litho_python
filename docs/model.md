@@ -21,8 +21,6 @@ $$
 At the origin its value is 1/2. The response is set to zero outside a circle
 of radius `(kernel_size // 2) * pixel_size_nm` and normalized to unit sum.
 The default 41-pixel kernel and 2 nm spacing give a 40 nm support radius.
-This truncation changes the ideal circular-pupil response; kernel size and
-sampling must be checked for the intended calculation.
 
 For source frequency `(fy, fx)`, the coherent kernel is
 
@@ -35,7 +33,7 @@ weights are nonnegative, normalized intensities. `source_weights` can replace
 the default annulus on that grid.
 
 Convolution is linear, zero padded, and cropped to the input shape. The mask
-is opaque outside the array. It is not a periodic simulation.
+is opaque outside the array.
 
 ## Objective and derivative
 
@@ -58,9 +56,9 @@ phase. `ImagingModel.loss_and_gradient` reuses the forward fields when computing
 this derivative. Kernels and source arrays are copied and cached as read-only
 arrays.
 
-The mask is unconstrained. Values outside [0, 1] are allowed by the optimizer;
-converting the result into a realizable mask requires additional constraints.
-The source is fixed, and no resist model is applied.
+The optimization variable is a real amplitude with no bounds, so mask values
+can be negative or exceed one. The source weights stay fixed, and the loss
+uses aerial intensity directly.
 
 ## Stopping conditions
 
@@ -68,8 +66,12 @@ Armijo backtracking accepts a step only when its loss and gradient are finite
 and the loss decreases by the required amount. If every trial fails, the
 optimizer returns the last accepted mask with `line_search_failed`.
 
-The other statuses are `gradient_tolerance`, `relative_loss_tolerance`, and
-`max_iterations`. A relative-loss stop means that the objective changed little;
-it does not establish a small gradient. `max_iterations` leaves `converged`
-false. The result stores accepted losses, gradient norms, step sizes, and the
-number of rejected trials.
+| Status | Stopping condition |
+| --- | --- |
+| `gradient_tolerance` | Gradient norm reaches the specified tolerance |
+| `relative_loss_tolerance` | Relative change in accepted loss reaches the specified tolerance |
+| `max_iterations` | Iteration budget exhausted; `converged` is false |
+| `line_search_failed` | All trial steps rejected; the last accepted mask is returned |
+
+The result stores accepted losses, gradient norms, step sizes, and the number
+of rejected trials.

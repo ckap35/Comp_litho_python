@@ -37,8 +37,8 @@ def gradient_descent(
     """Minimize an objective returning (loss, gradient).
 
     An accepted step updates the mask, loss, and gradient together. A failed
-    line search returns the last accepted state. A relative-loss stop does
-    not require the gradient to be small.
+    line search returns the last accepted state. The relative-loss criterion
+    uses successive accepted loss values.
     """
     for name, value in (("max_iterations", max_iterations), ("max_backtracks", max_backtracks)):
         if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 0:

@@ -1,77 +1,95 @@
 # Imaging model and gradient
 
-The model follows scalar Abbe imaging: compute one coherent image field per
-source point, square its magnitude, then sum with the source intensity weights.
-All lengths are in nanometers and frequencies in cycles per nanometer.
+The model computes one coherent field per source point, then sums their
+intensities with nonnegative source weights. Lengths are in nm and spatial
+frequencies in cycles/nm. Arrays use `(y, x)` order.
 
-## Sampling and boundaries
+## Circular pupil and mask sampling
 
-Arrays use `(y, x)` order. A centered axis of length `N` has coordinates
-`arange(N) - (N - 1) / 2`. The source-frequency spacing is
-`1 / (image_size * pixel_size_nm)`, and sigma is the source radius divided by
-`NA / wavelength_nm`. An even source lattice has half-integer coordinates and
-no on-axis point.
-
-The sampled amplitude response is `J1(u) / u`, where
+A unit circular pupil has cutoff `fc = NA / wavelength_nm`. Its continuous
+coherent impulse response is
 
 $$
-u = \frac{2\pi\,\mathrm{NA}}{\lambda}\sqrt{x^2+y^2}.
+h(r)=2\pi f_c^2\frac{J_1(2\pi f_c r)}{2\pi f_c r},\qquad
+h(0)=\pi f_c^2.
 $$
 
-At the origin its value is 1/2. The response is set to zero outside a circle
-of radius `(kernel_size // 2) * pixel_size_nm` and normalized to unit sum.
-The default 41-pixel kernel and 2 nm spacing give a 40 nm support radius.
+Each mask sample contributes its amplitude times `pixel_size_nm**2`; this is
+a midpoint quadrature of the mask integral. The default kernel contains every
+displacement between an input and output pixel: `2 * image_size - 1` samples
+on each axis. There is no additional radial cutoff and no normalization by
+the sum of a finite kernel.
 
-For source frequency `(fy, fx)`, the coherent kernel is
+The mask is zero outside the image. Finite-field diffraction and boundary
+ripples are therefore part of the calculation. Changing the field of view
+changes that physical aperture. Reducing pixel spacing at fixed physical
+geometry checks the mask quadrature error.
 
-$$
-K_s(x,y)=h(x,y)\exp[2\pi i(f_y y+f_x x)].
-$$
-
-The same frequency grid defines both the annulus and the phase ramp. Source
-weights are nonnegative, normalized intensities. `source_weights` can replace
-the default annulus on that grid.
-
-Convolution is linear, zero padded, and cropped to the input shape. The mask
-is opaque outside the array.
-
-## Objective and derivative
-
-For a real amplitude mask `m`, target intensity `T`, and source weights `w_s`,
+For source frequency `(fy, fx)`, the sampled kernel is
 
 $$
-u_s=K_s*m,\qquad I=\sum_s w_s|u_s|^2,
-\qquad L=\sum_{i,j}(I_{ij}-T_{ij})^2.
+K_s(x,y)=\Delta x^2 h(\sqrt{x^2+y^2})
+        \exp[2\pi i(f_y y+f_x x)].
 $$
 
-The derivative with respect to the real mask values is
+The source lattice spacing is `1 / (image_size * pixel_size_nm)`. An axis
+of length `N` uses `arange(N) - (N - 1) / 2`, so even source lattices have
+half-integer coordinates. Sigma is source radius divided by `fc`. Custom
+`source_weights` replace the annulus on that same lattice; weights are copied
+and normalized to unit total intensity. Sampling must resolve the shifted
+pupil, including the active source frequencies.
+
+An explicitly supplied smaller, odd `kernel_size` truncates the response.
+It is available for comparisons; the resulting optical error must be checked
+for the chosen mask. Its physical prefactor stays the same.
+
+## FFT evaluation and adjoint
+
+Signed kernel displacements are embedded in a circulant array with at least
+`2 * image_size - 1` samples on each axis. That extent keeps every input/output
+pair distinct. The mask occupies the first `image_size` samples, with zero
+padding elsewhere; the output is cropped to that same region. Kernel FFTs
+are cached, and one mask FFT is shared across source points.
+
+For a real mask `m`, target intensity `T`, and source weights `w_s`,
+
+$$
+u_s=K_s m,\qquad I=\sum_s w_s|u_s|^2,\qquad
+L=\sum_{i,j}(I_{ij}-T_{ij})^2,
+$$
 
 $$
 \nabla_m L=4\sum_s w_s\operatorname{Re}
-\left[K_s^H*((I-T)u_s)\right].
+\left[K_s^H((I-T)u_s)\right].
 $$
 
-`K_s^H` is the reversed, conjugated complex kernel, including the illumination
-phase. `ImagingModel.loss_and_gradient` reuses the forward fields when computing
-this derivative. Kernels and source arrays are copied and cached as read-only
-arrays.
+The adjoint zero-pads the residual field, multiplies by the conjugated kernel
+transform, and crops to the mask region. Boundary and asymmetric-source tests
+compare this derivative with finite differences.
 
-The optimization variable is a real amplitude with no bounds, so mask values
-can be negative or exceed one. The source weights stay fixed, and the loss
-uses aerial intensity directly.
+The mask amplitude is real and unconstrained: negative values and values above
+one are allowed. The objective uses aerial intensity directly, with fixed
+illumination and no resist or mask-manufacturing constraints.
 
-## Stopping conditions
+## Independent optical check
 
-Armijo backtracking accepts a step only when its loss and gradient are finite
-and the loss decreases by the required amount. If every trial fails, the
-optimizer returns the last accepted mask with `line_search_failed`.
+`pupil_reference.py` integrates the mask spectrum directly over a circular
+pupil using NumPy matrix products. It uses neither the Bessel response nor an
+FFT. `python examples/validate_pupil.py` compares the two calculations and
+writes the figure and metrics in `docs/`. The tests also check convergence of
+the pupil quadrature and of mask sampling for a fixed physical opening.
+
+![Independent pupil comparison](figures/pupil_validation.png)
+
+## Optimizer
+
+Armijo backtracking accepts finite trial states with sufficient loss decrease.
+A failed search returns the last accepted state. The result records accepted
+losses, gradient norms, step sizes, evaluations, and rejected trials.
 
 | Status | Stopping condition |
 | --- | --- |
-| `gradient_tolerance` | Gradient norm reaches the specified tolerance |
-| `relative_loss_tolerance` | Relative change in accepted loss reaches the specified tolerance |
+| `gradient_tolerance` | Maximum absolute gradient reaches the tolerance |
+| `relative_loss_tolerance` | Change between accepted losses reaches the tolerance |
 | `max_iterations` | Iteration budget exhausted; `converged` is false |
-| `line_search_failed` | All trial steps rejected; the last accepted mask is returned |
-
-The result stores accepted losses, gradient norms, step sizes, and the number
-of rejected trials.
+| `line_search_failed` | All trial steps rejected; `converged` is false |

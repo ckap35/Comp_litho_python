@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "comp-litho-python"
-version = "0.1.0"
+version = "0.2.0"
 description = "Scalar Abbe imaging and mask optimization"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,4 +14,4 @@ dependencies = ["numpy>=1.24", "scipy>=1.10", "matplotlib>=3.7"]
 comp-litho = "run_mask_optimization:main"
 
 [tool.setuptools]
-py-modules = ["imaging", "optimization", "run_mask_optimization"]
+py-modules = ["imaging", "optimization", "run_mask_optimization", "pupil_reference"]

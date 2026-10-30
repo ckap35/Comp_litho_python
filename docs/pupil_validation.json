@@ -1,0 +1,10 @@
+{
+  "relative_intensity_errors": {
+    "full": 0.0001005763358046265,
+    "9_by_9_kernel": 0.43945184517082436
+  },
+  "reference_pupil_samples_per_axis": 513,
+  "image_size": 41,
+  "pixel_size_nm": 10,
+  "full_kernel_size": 81
+}
